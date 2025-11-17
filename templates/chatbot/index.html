@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UK Universities Chatbot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            width: 90%;
+            max-width: 800px;
+            height: 90vh;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: #667eea;
+            color: white;
+            padding: 20px;
+            border-radius: 10px 10px 0 0;
+            text-align: center;
+        }
+        .chat-box {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .message {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background: #667eea;
+            color: white;
+            align-self: flex-end;
+            margin-left: auto;
+        }
+        .bot-message {
+            background: #f1f3f5;
+            color: #333;
+            align-self: flex-start;
+            line-height: 1.6;
+            max-width: 85%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .bot-message strong {
+            color: #667eea;
+            font-weight: 600;
+        }
+        .bot-message em {
+            font-style: italic;
+            color: #555;
+        }
+        .bot-message a {
+            color: #667eea;
+            text-decoration: none;
+            border-bottom: 1px solid #667eea;
+            transition: all 0.2s ease;
+        }
+        .bot-message a:hover {
+            background: #e7eaf6;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .bot-message hr {
+            border: none;
+            border-top: 2px solid #e0e0e0;
+            margin: 15px 0;
+        }
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+        }
+        #messageInput {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            outline: none;
+            font-size: 14px;
+        }
+        #messageInput:focus {
+            border-color: #667eea;
+        }
+        button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .loading {
+            display: none;
+            padding: 12px 16px;
+            background: #f1f3f5;
+            border-radius: 18px;
+            max-width: 70%;
+            align-self: flex-start;
+        }
+        .loading.active {
+            display: block;
+        }
+        .reload-btn {
+            background: #28a745;
+            padding: 8px 16px;
+            font-size: 12px;
+            margin: 0 5px;
+        }
+        .reload-btn:hover {
+            background: #218838;
+        }
+        .header-buttons {
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .web-btn {
+            background: #17a2b8;
+            padding: 8px 16px;
+            font-size: 12px;
+        }
+        .web-btn:hover {
+            background: #138496;
+        }
+        .danger-btn {
+            background: #dc3545;
+            padding: 8px 16px;
+            font-size: 12px;
+        }
+        .danger-btn:hover {
+            background: #c82333;
+        }
+        .stats-display {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 12px;
+            border-radius: 15px;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 500px;
+        }
+        .modal-header {
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: black;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 UK Universities Chatbot</h1>
+            <p>Ask me anything about UK universities!</p>
+            <div class="header-buttons">
+                <button class="reload-btn" onclick="reloadData()">Reload Data</button>
+                <button class="web-btn" onclick="refetchWikipediaData()">Refetch Wikipedia Data</button>
+{#                <button class="web-btn" onclick="openWebContentModal()">Add Web Content</button>#}
+{#                <button class="web-btn" onclick="openSearchModal()">Add Search Results</button>#}
+{#                <button class="danger-btn" onclick="clearWebContent()">Clear Web Content</button>#}
+{#                <button class="reload-btn" onclick="getStats()">Refresh Stats</button>#}
+            </div>
+            <div class="stats-display" id="statsDisplay">
+                Loading stats...
+            </div>
+        </div>
+        
+        <div class="chat-box" id="chatBox">
+            <div class="bot-message message">
+                Hello! I can help you with information about UK universities.
+                <br><br>
+                🌐 <strong>Web scraping enabled!</strong> Use the buttons above to add web content to my knowledge base.
+                <br><br>
+                💡 <em>Note: For AI-powered responses, add your Anthropic API key to the .env file. Currently using simple retrieval responses.</em>
+            </div>
+        </div>
+        
+        <div class="input-area">
+            <input 
+                type="text" 
+                id="messageInput" 
+                placeholder="Type your question here..." 
+                onkeypress="handleKeyPress(event)"
+            >
+            <button onclick="sendMessage()" id="sendBtn">Send</button>
+        </div>
+    </div>
+
+    <!-- Web Content Modal -->
+    <div id="webContentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="close" onclick="closeModal('webContentModal')">&times;</span>
+                <h2>Add Web Content</h2>
+            </div>
+            <div class="form-group">
+                <label for="urlInput">Website URL:</label>
+                <input type="text" id="urlInput" placeholder="https://example.com">
+            </div>
+            <div class="form-group">
+                <label for="maxPagesInput">Max Pages (for crawling):</label>
+                <input type="number" id="maxPagesInput" value="1" min="1" max="50">
+            </div>
+            <button onclick="addWebContent()" id="addWebBtn">Add Content</button>
+        </div>
+    </div>
+
+    <!-- Search Modal -->
+    <div id="searchModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="close" onclick="closeModal('searchModal')">&times;</span>
+                <h2>Add Search Results</h2>
+            </div>
+            <div class="form-group">
+                <label for="searchQueryInput">Search Query:</label>
+                <input type="text" id="searchQueryInput" placeholder="Enter search terms">
+            </div>
+            <div class="form-group">
+                <label for="maxResultsInput">Max Results:</label>
+                <input type="number" id="maxResultsInput" value="3" min="1" max="10">
+            </div>
+            <button onclick="addSearchContent()" id="addSearchBtn">Add Content</button>
+        </div>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById('chatBox');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        function addMessage(text, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+
+            if (isUser) {
+                messageDiv.textContent = text;
+            } else {
+                // For bot messages, parse and format the content
+                messageDiv.innerHTML = formatBotResponse(text);
+            }
+
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function formatBotResponse(text) {
+            // Replace horizontal rules (---) with styled dividers
+            text = text.replace(/\n---\n/g, '<hr style="border: none; border-top: 2px solid #e0e0e0; margin: 15px 0;">');
+
+            // Replace **bold** with <strong>
+            text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+            // Replace *italic* with <em>
+            text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+            // Replace [text](url) links with proper HTML links
+            text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+            // Format source headers with better styling
+            text = text.replace(/\*\*Source (\d+):\*\*/g, '<div style="margin-top: 10px; margin-bottom: 8px;"><span style="display: inline-block; background: #667eea; color: white; padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: bold;">📄 Source $1</span></div>');
+
+            // Format tip section with enhanced styling
+            text = text.replace(/💡 \*\*Tip:\*\*/g, '<div style="margin-top: 15px; padding: 12px 15px; background: linear-gradient(135deg, #fff3cd 0%, #ffe8a1 100%); border-left: 4px solid #ffc107; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><strong style="color: #856404;">💡 Tip:</strong>');
+            text = text.replace(/(💡 \*\*Tip:\*\*.*?)(<hr|$)/gs, '$1</div>$2');
+
+            // Replace line breaks
+            text = text.replace(/\n\n/g, '<br><br>');
+            text = text.replace(/\n/g, '<br>');
+
+            return text;
+        }
+
+        function showLoading() {
+            const loading = document.createElement('div');
+            loading.className = 'loading active';
+            loading.id = 'loadingIndicator';
+            loading.textContent = 'Thinking...';
+            chatBox.appendChild(loading);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function hideLoading() {
+            const loading = document.getElementById('loadingIndicator');
+            if (loading) loading.remove();
+        }
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            addMessage(message, true);
+            messageInput.value = '';
+            sendBtn.disabled = true;
+            showLoading();
+
+            try {
+                const response = await fetch('/chat/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+
+                const data = await response.json();
+                hideLoading();
+
+                if (data.status === 'success') {
+                    addMessage(data.response, false);
+                } else {
+                    addMessage('Sorry, something went wrong. Please try again.', false);
+                }
+            } catch (error) {
+                hideLoading();
+                addMessage('Error: Could not connect to server.', false);
+            }
+
+            sendBtn.disabled = false;
+            messageInput.focus();
+        }
+
+        async function reloadData() {
+            try {
+                const response = await fetch('/reload/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+                if (data.status === 'success') {
+                    alert('Data reloaded successfully!');
+                    getStats();
+                } else {
+                    alert('Error reloading data');
+                }
+            } catch (error) {
+                alert('Error: Could not reload data');
+            }
+        }
+
+        async function refetchWikipediaData() {
+            if (!confirm('This will refetch data from Wikipedia and update the local file. Continue?')) {
+                return;
+            }
+
+            try {
+                // Show loading message
+                const statsDisplay = document.getElementById('statsDisplay');
+                const originalContent = statsDisplay.innerHTML;
+                statsDisplay.innerHTML = '🔄 Fetching data from Wikipedia...';
+
+                const response = await fetch('/refetch-reload/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        url: 'https://en.wikipedia.org/wiki/Universities_in_the_United_Kingdom'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    alert('✅ ' + data.message);
+                    updateStats(data.stats);
+                } else {
+                    alert('Error: ' + data.error);
+                    statsDisplay.innerHTML = originalContent;
+                }
+            } catch (error) {
+                alert('Error: Could not refetch Wikipedia data');
+                getStats();
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // Firecrawl functionality
+        function openWebContentModal() {
+            document.getElementById('webContentModal').style.display = 'block';
+        }
+
+        function openSearchModal() {
+            document.getElementById('searchModal').style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        async function addWebContent() {
+            const url = document.getElementById('urlInput').value.trim();
+            const maxPages = parseInt(document.getElementById('maxPagesInput').value);
+
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+
+            const addWebBtn = document.getElementById('addWebBtn');
+            addWebBtn.disabled = true;
+            addWebBtn.textContent = 'Adding...';
+
+            try {
+                const response = await fetch('/add-web-content/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url, max_pages: maxPages })
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    alert(data.message);
+                    updateStats(data.stats);
+                    closeModal('webContentModal');
+                    document.getElementById('urlInput').value = '';
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error: Could not add web content');
+            }
+
+            addWebBtn.disabled = false;
+            addWebBtn.textContent = 'Add Content';
+        }
+
+        async function addSearchContent() {
+            const query = document.getElementById('searchQueryInput').value.trim();
+            const maxResults = parseInt(document.getElementById('maxResultsInput').value);
+
+            if (!query) {
+                alert('Please enter a search query');
+                return;
+            }
+
+            const addSearchBtn = document.getElementById('addSearchBtn');
+            addSearchBtn.disabled = true;
+            addSearchBtn.textContent = 'Searching...';
+
+            try {
+                const response = await fetch('/add-search-content/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query: query, max_results: maxResults })
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    alert(data.message);
+                    updateStats(data.stats);
+                    closeModal('searchModal');
+                    document.getElementById('searchQueryInput').value = '';
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error: Could not add search content');
+            }
+
+            addSearchBtn.disabled = false;
+            addSearchBtn.textContent = 'Add Content';
+        }
+
+        async function clearWebContent() {
+            if (!confirm('Are you sure you want to clear all web content? This cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/clear-web-content/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    alert(data.message);
+                    updateStats(data.stats);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error: Could not clear web content');
+            }
+        }
+
+        async function getStats() {
+            try {
+                const response = await fetch('/knowledge-stats/', {
+                    method: 'GET'
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    updateStats(data.stats);
+                } else {
+                    console.error('Error getting stats:', data.error);
+                }
+            } catch (error) {
+                console.error('Error: Could not get stats');
+            }
+        }
+
+        function updateStats(stats) {
+            const statsDisplay = document.getElementById('statsDisplay');
+            statsDisplay.innerHTML = `
+                📊 Knowledge Base: ${stats.total_chunks} chunks
+                (📁 ${stats.file_chunks} from files, 🌐 ${stats.web_chunks} from web)
+            `;
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const webModal = document.getElementById('webContentModal');
+            const searchModal = document.getElementById('searchModal');
+
+            if (event.target === webModal) {
+                webModal.style.display = 'none';
+            }
+            if (event.target === searchModal) {
+                searchModal.style.display = 'none';
+            }
+        }
+
+        // Initialize stats on page load
+        messageInput.focus();
+        getStats();
+    </script>
+</body>
+</html>
