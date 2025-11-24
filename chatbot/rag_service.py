@@ -10,7 +10,7 @@ class RAGService:
         self.load_data()
     
     def load_data(self):
-        """Load and chunk university data into vector database"""
+
         with open(self.data_file, 'r', encoding='utf-8') as f:
             content = f.read()
         
@@ -25,7 +25,7 @@ class RAGService:
             )
     
     def _split_into_chunks(self, text, chunk_size=500):
-        """Split text into chunks by paragraphs/sections"""
+
         paragraphs = text.split('\n\n')
         chunks = []
         current_chunk = ""
@@ -44,7 +44,7 @@ class RAGService:
         return chunks
     
     def search(self, query, n_results=3):
-        """Search for relevant information"""
+
         results = self.collection.query(
             query_texts=[query],
             n_results=n_results
@@ -52,7 +52,7 @@ class RAGService:
         return results['documents'][0] if results['documents'] else []
     
     def reload_data(self):
-        """Reload data from file (call this when data file changes)"""
+
         self.client.delete_collection(name="uk_universities")
         self.collection = self.client.create_collection(name="uk_universities")
         self.load_data()

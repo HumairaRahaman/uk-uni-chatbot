@@ -3,19 +3,14 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
 import os
-
-# Set environment variable to disable tokenizers parallelism warning
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_FILE = os.path.join(BASE_DIR, 'chatbot', 'universities_data.txt')
-
-# Global variables to store services (lazy initialization)
 _rag_service = None
 _chatbot_service = None
 
 def get_services():
-    """Initialize services lazily to avoid fork issues"""
+
     global _rag_service, _chatbot_service
     if _rag_service is None or _chatbot_service is None:
         from chatbot.enhanced_rag_service import EnhancedRAGService
@@ -25,12 +20,12 @@ def get_services():
     return _rag_service, _chatbot_service
 
 def index(request):
-    """Render chatbot interface"""
+
     return render(request, 'chatbot/index.html')
 
 @csrf_exempt
 def chat(request):
-    """Handle chat requests"""
+
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -55,7 +50,7 @@ def chat(request):
 
 @csrf_exempt
 def reload_data(request):
-    """Reload data from file"""
+
     if request.method == 'POST':
         try:
             rag_service, chatbot_service = get_services()
@@ -71,7 +66,7 @@ def reload_data(request):
 
 @csrf_exempt
 def refetch_and_reload_data(request):
-    """Refetch data from Wikipedia and reload into ChromaDB"""
+
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -100,7 +95,7 @@ def refetch_and_reload_data(request):
 
 @csrf_exempt
 def add_web_content(request):
-    """Add web content to knowledge base using Firecrawl"""
+
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -138,7 +133,7 @@ def add_web_content(request):
 
 @csrf_exempt
 def add_search_content(request):
-    """Search web and add relevant content to knowledge base"""
+
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -172,7 +167,7 @@ def add_search_content(request):
 
 @csrf_exempt
 def get_knowledge_stats(request):
-    """Get statistics about the knowledge base"""
+
     if request.method == 'GET':
         try:
             rag_service, chatbot_service = get_services()
@@ -188,7 +183,7 @@ def get_knowledge_stats(request):
 
 @csrf_exempt
 def clear_web_content(request):
-    """Clear all web-scraped content from knowledge base"""
+
     if request.method == 'POST':
         try:
             rag_service, chatbot_service = get_services()
@@ -206,7 +201,7 @@ def clear_web_content(request):
 
 @csrf_exempt
 def search_with_sources(request):
-    """Search knowledge base and return results with source information"""
+
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
