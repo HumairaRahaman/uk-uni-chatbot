@@ -14,14 +14,59 @@ class ChatbotService:
     def _clean_text(self, text: str) -> str:
         """Remove citation links and clean text"""
         try:
+            # Remove citation numbers like [1], [2], [183]
             text = re.sub(r'\[\d+\]', '', text)
+
+            # Remove escaped citation brackets like [\[183\]]
+            text = re.sub(r'\[\\?\[\\?\d+\\?\]\\?\]', '', text)
+
+            # Remove Wikipedia editorial markers like [citation needed], [self-published source], etc.
+            text = re.sub(r'\[\\?_\[?[^\]]+_?\\?\]\\?\]', '', text)
+            text = re.sub(r'\(_\[[^\]]+\]_?\)', '', text)
+            text = re.sub(r'\[_[^\]]+_\]', '', text)
+
+            # Remove Wikipedia tags like [update], [clarification needed], etc.
+            text = re.sub(r'\[\\?update\\?\]', '', text)
+            text = re.sub(r'\[\\?needs update\\?\]', '', text)
+            text = re.sub(r'\[\\?clarification needed\\?\]', '', text)
+            text = re.sub(r'\[\\?citation needed\\?\]', '', text)
+            text = re.sub(r'\[\\?failed verification\\?\]', '', text)
+            text = re.sub(r'\[\\?when\?\\?\]', '', text)
+            text = re.sub(r'\[\\?who\?\\?\]', '', text)
+            text = re.sub(r'\[\\?which\?\\?\]', '', text)
+
+            # Remove any remaining [word] patterns (Wikipedia tags)
+            text = re.sub(r'\[\\?[a-zA-Z\s]+\\?\]', '', text)
+
+            # Remove standalone _] or _[
+            text = re.sub(r'_\\?\]', '', text)
+            text = re.sub(r'\\?\[_', '', text)
+
+            # Remove backslashes and underscores (but keep normal brackets and parentheses)
+            text = re.sub(r'\\', '', text)  # Remove all backslashes
+            text = re.sub(r'_', '', text)  # Remove all underscores
+
+            # Remove any remaining escaped brackets
+            text = re.sub(r'\[\\?\]', '', text)
+
+            # Remove URLs
             text = re.sub(r'https?://[^\s]+', '', text)
             text = re.sub(r'www\.[^\s]+', '', text)
             text = re.sub(r'org/wiki/[^\s\)]+', '', text)
+
+            # Remove citation markers like #cite_note-211
             text = re.sub(r'#cite[^\s\)]+', '', text)
+
+            # Remove empty parentheses and brackets left after removing citations
             text = re.sub(r'\(\s*\)', '', text)
+            text = re.sub(r'\[\s*\]', '', text)
+
+            # Remove multiple spaces
             text = re.sub(r'\s+', ' ', text)
+
+            # Remove spaces before punctuation
             text = re.sub(r'\s+([.,;:!?])', r'\1', text)
+
             return text.strip()
         except Exception as e:
             print(f"Error cleaning text: {e}")
@@ -141,13 +186,10 @@ Please try rephrasing your question or ask about a specific UK university!"""
 If the problem persists, please contact support."""
 
     def _generate_response(self, user_query, cleaned_docs):
-        """Generate structured response from knowledge base"""
+        """Generate simple paragraph response - NO headers, NO formatting"""
 
         try:
-            print("📝 Building structured response...")
-
-            # Start with title
-            response = f"## 🎓 {user_query.title()}\n\n"
+            print("📝 Building paragraph response...")
 
             # Extract sentences from documents
             all_sentences = []
@@ -181,25 +223,21 @@ If the problem persists, please contact support."""
                 print("⚠️ No valid sentences extracted")
                 return f"I found information about {user_query}, but couldn't extract clear details. Please try rephrasing your question."
 
-            # Build structured response
-            if len(unique_sentences) >= 1:
-                response += "**Overview:**\n"
-                response += f"{unique_sentences[0]}.\n\n"
+            # Build simple paragraph response (NO headers, NO bullet points, NO emojis)
+            # Just natural paragraphs like a person would write
+            response = ""
 
+            # First paragraph (3-4 sentences)
             if len(unique_sentences) >= 4:
-                response += "**Key Information:**\n"
-                for i in range(1, min(4, len(unique_sentences))):
-                    response += f"• {unique_sentences[i]}.\n"
-                response += "\n"
+                response = ". ".join(unique_sentences[:4]) + "."
+            elif len(unique_sentences) >= 1:
+                response = ". ".join(unique_sentences) + "."
 
-            if len(unique_sentences) >= 7:
-                response += "**Additional Details:**\n"
-                for i in range(4, min(7, len(unique_sentences))):
-                    response += f"• {unique_sentences[i]}.\n"
-                response += "\n"
-
-            # Add helpful closing
-            response += "\n💡 **Need more information?** Feel free to ask about specific aspects!"
+            # Add second paragraph if we have more sentences (5-8)
+            if len(unique_sentences) >= 8:
+                response += "\n\n" + ". ".join(unique_sentences[4:8]) + "."
+            elif len(unique_sentences) >= 5:
+                response += "\n\n" + ". ".join(unique_sentences[4:]) + "."
 
             print("✅ Response generated successfully")
             return response
@@ -214,10 +252,6 @@ If the problem persists, please contact support."""
                 first_doc = cleaned_docs[0]
                 # Get first 400 characters
                 simple_text = first_doc[:400]
-                return f"""**About: {user_query}**
-
-{simple_text}...
-
-*This is a simplified response. Try rephrasing your question for better results.*"""
+                return f"{simple_text}..."
             else:
                 return "I couldn't generate a proper response. Please try asking your question differently."

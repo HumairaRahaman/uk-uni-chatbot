@@ -113,8 +113,42 @@ class EnhancedRAGService:
 
     def _clean_text(self, text: str) -> str:
         """Remove citations, URLs, and clean text thoroughly"""
-        # Remove Wikipedia citations
+        # Remove Wikipedia citations like [1], [2], [183]
         text = re.sub(r'\[\d+\]', '', text)
+
+        # Remove escaped citation brackets like [\[183\]]
+        text = re.sub(r'\[\\?\[\\?\d+\\?\]\\?\]', '', text)
+
+        # Remove Wikipedia editorial markers like [citation needed], [self-published source], etc.
+        text = re.sub(r'\[\\?_\[?[^\]]+_?\\?\]\\?\]', '', text)
+        text = re.sub(r'\(_\[[^\]]+\]_?\)', '', text)
+        text = re.sub(r'\[_[^\]]+_\]', '', text)
+
+        # Remove Wikipedia tags like [update], [clarification needed], etc.
+        text = re.sub(r'\[\\?update\\?\]', '', text)
+        text = re.sub(r'\[\\?needs update\\?\]', '', text)
+        text = re.sub(r'\[\\?clarification needed\\?\]', '', text)
+        text = re.sub(r'\[\\?citation needed\\?\]', '', text)
+        text = re.sub(r'\[\\?failed verification\\?\]', '', text)
+        text = re.sub(r'\[\\?when\?\\?\]', '', text)
+        text = re.sub(r'\[\\?who\?\\?\]', '', text)
+        text = re.sub(r'\[\\?which\?\\?\]', '', text)
+
+        # Remove any remaining [word] patterns (Wikipedia tags)
+        text = re.sub(r'\[\\?[a-zA-Z\s]+\\?\]', '', text)
+
+        # Remove standalone _] or _[
+        text = re.sub(r'_\\?\]', '', text)
+        text = re.sub(r'\\?\[_', '', text)
+
+        # Remove backslashes and underscores (but keep normal brackets and parentheses)
+        text = re.sub(r'\\', '', text)  # Remove all backslashes
+        text = re.sub(r'_', '', text)  # Remove all underscores
+
+        # Remove any remaining escaped brackets
+        text = re.sub(r'\[\\?\]', '', text)
+
+        # Remove citation markers like #cite_note-211
         text = re.sub(r'#cite[^\s\)]+', '', text)
 
         # Remove URLs
@@ -123,7 +157,7 @@ class EnhancedRAGService:
         text = re.sub(r'org/wiki/[^\s\)]+', '', text)
         text = re.sub(r'en\.wikipedia\.org[^\s\)]+', '', text)
 
-        # Remove empty brackets
+        # Remove empty brackets and parentheses
         text = re.sub(r'\(\s*\)', '', text)
         text = re.sub(r'\[\s*\]', '', text)
 
