@@ -10,7 +10,8 @@ class EnhancedRAGService:
         self.data_file = data_file_path
         self.collection_name = collection_name
 
-        # Use persistent client for better performance
+        # Use in-memory client for FASTER performance
+        print("⚡ Initializing ChromaDB (Pro Mode)...")
         self.client = chromadb.Client()
 
         try:
@@ -19,14 +20,14 @@ class EnhancedRAGService:
         except:
             self.collection = self.client.create_collection(
                 name=collection_name,
-                metadata={"hnsw:space": "cosine"}  # Optimized for cosine similarity
+                metadata={"hnsw:space": "cosine"}
             )
             print(f"✅ Created new collection: {collection_name}")
 
         # Use faster embedding model
-        print("Loading embedding model...")
+        print("⚡ Loading embedding model...")
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
-        print("✅ Embedding model loaded")
+        print("✅ Ready for ChatGPT Pro-style responses!")
 
         self.firecrawl = None
 
@@ -34,10 +35,10 @@ class EnhancedRAGService:
         try:
             count = self.collection.count()
             if count == 0:
-                print("Collection is empty, loading data...")
+                print("📚 Loading knowledge base...")
                 self.load_data()
             else:
-                print(f"✅ Collection has {count} documents")
+                print(f"✅ Knowledge base ready with {count} documents")
         except:
             self.load_data()
 
@@ -52,29 +53,34 @@ class EnhancedRAGService:
         return self.firecrawl
 
     def load_data(self):
-        """Load and chunk data with optimized chunking strategy"""
+        """Load and chunk data - OPTIMIZED with CLEAN text"""
         try:
             with open(self.data_file, 'r', encoding='utf-8') as f:
                 content = f.read()
 
-            # Improved chunking: smaller, more focused chunks
-            chunks = self._split_into_chunks(content, chunk_size=300)
+            # Clean the content thoroughly
+            content = self._clean_text(content)
 
-            print(f"Processing {len(chunks)} chunks...")
+            # Create optimized chunks (400 chars for balance of speed and detail)
+            chunks = self._split_into_chunks(content, chunk_size=400)
 
-            # Batch add for better performance
-            batch_size = 100
+            print(f"⚡ Processing {len(chunks)} chunks...")
+
+            # Batch processing for speed
+            batch_size = 50
+            total_added = 0
+
             for i in range(0, len(chunks), batch_size):
                 batch = chunks[i:i + batch_size]
                 ids = [f"file_chunk_{j}" for j in range(i, i + len(batch))]
                 metadatas = [{"source": "local_file", "type": "file"} for _ in batch]
 
                 try:
-                    # Check if any IDs already exist
+                    # Check existing
                     existing = self.collection.get(ids=ids)
                     existing_ids = set(existing['ids']) if existing['ids'] else set()
 
-                    # Only add new chunks
+                    # Add only new chunks
                     new_chunks = []
                     new_ids = []
                     new_metadatas = []
@@ -91,54 +97,60 @@ class EnhancedRAGService:
                             ids=new_ids,
                             metadatas=new_metadatas
                         )
+                        total_added += len(new_chunks)
                 except Exception as e:
-                    print(f"Error adding batch {i}: {e}")
-                    continue
+                    print(f"Error adding batch: {e}")
 
-            print(f"✅ Loaded {len(chunks)} chunks into knowledge base")
+            if total_added > 0:
+                print(f"✅ Loaded {total_added} new chunks")
+            else:
+                print("✅ All chunks already loaded")
 
         except FileNotFoundError:
-            print(f"⚠️ Data file {self.data_file} not found. Starting with empty knowledge base.")
+            print(f"⚠️ Data file {self.data_file} not found.")
         except Exception as e:
             print(f"Error loading data: {e}")
 
     def _clean_text(self, text: str) -> str:
-        """Clean and normalize text"""
-        # Remove excessive whitespace
+        """Remove citations, URLs, and clean text thoroughly"""
+        # Remove Wikipedia citations
+        text = re.sub(r'\[\d+\]', '', text)
+        text = re.sub(r'#cite[^\s\)]+', '', text)
+
+        # Remove URLs
+        text = re.sub(r'https?://[^\s]+', '', text)
+        text = re.sub(r'www\.[^\s]+', '', text)
+        text = re.sub(r'org/wiki/[^\s\)]+', '', text)
+        text = re.sub(r'en\.wikipedia\.org[^\s\)]+', '', text)
+
+        # Remove empty brackets
+        text = re.sub(r'\(\s*\)', '', text)
+        text = re.sub(r'\[\s*\]', '', text)
+
+        # Clean whitespace
         text = re.sub(r'\s+', ' ', text)
-        # Remove special characters but keep basic punctuation
-        text = re.sub(r'[^\w\s.,!?-]', '', text)
+        text = re.sub(r'\s+([.,;:!?])', r'\1', text)
+
         return text.strip()
 
-    def _split_into_chunks(self, text: str, chunk_size: int = 300) -> List[str]:
-        """
-        Split text into optimized chunks
-        Smaller chunks = more precise retrieval = faster responses
-        """
-        # Split by double newlines (paragraphs)
+    def _split_into_chunks(self, text: str, chunk_size: int = 400) -> List[str]:
+        """Split text into optimized chunks"""
         paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
 
         chunks = []
         current_chunk = ""
 
         for para in paragraphs:
-            para = self._clean_text(para)
-
-            # Skip very short paragraphs (likely headers or noise)
             if len(para) < 30:
                 continue
 
-            # If paragraph is small enough, add to current chunk
             if len(current_chunk) + len(para) < chunk_size:
                 current_chunk += para + " "
             else:
-                # Save current chunk if it has content
                 if current_chunk.strip():
                     chunks.append(current_chunk.strip())
 
-                # Start new chunk with current paragraph
                 if len(para) > chunk_size:
-                    # Split long paragraphs into sentences
                     sentences = re.split(r'(?<=[.!?])\s+', para)
                     temp_chunk = ""
                     for sent in sentences:
@@ -152,38 +164,36 @@ class EnhancedRAGService:
                 else:
                     current_chunk = para + " "
 
-        # Add final chunk
         if current_chunk.strip():
             chunks.append(current_chunk.strip())
 
         return chunks
 
-    def search(self, query: str, n_results: int = 5, source_filter: Optional[str] = None) -> List[str]:
+    def search(self, query: str, n_results: int = 8, source_filter: Optional[str] = None) -> List[str]:
         """
-        Optimized search with better relevance filtering
+        Search for relevant documents
+        Returns 8 results by default for comprehensive Pro-style responses
         """
         try:
             where_clause = None
             if source_filter:
                 where_clause = {"type": source_filter}
 
-            # Increased n_results to get more candidates, then filter
             results = self.collection.query(
                 query_texts=[query],
-                n_results=min(n_results * 2, 10),  # Get more candidates
+                n_results=n_results,
                 where=where_clause
             )
 
             if not results['documents'] or not results['documents'][0]:
                 return []
 
-            # Return top n_results
-            documents = results['documents'][0][:n_results]
+            documents = results['documents'][0]
 
-            # Filter out very short or irrelevant chunks
+            # Filter out very short chunks
             filtered_docs = [
                 doc for doc in documents
-                if len(doc.strip()) > 50  # Minimum length
+                if len(doc.strip()) > 50
             ]
 
             return filtered_docs if filtered_docs else documents
@@ -192,7 +202,7 @@ class EnhancedRAGService:
             print(f"Search error: {e}")
             return []
 
-    def get_sources(self, query: str, n_results: int = 3) -> List[Dict]:
+    def get_sources(self, query: str, n_results: int = 5) -> List[Dict]:
         """Get search results with source metadata"""
         try:
             results = self.collection.query(
@@ -213,7 +223,7 @@ class EnhancedRAGService:
                         'source': metadata.get('source', 'Unknown'),
                         'type': metadata.get('type', 'Unknown'),
                         'title': metadata.get('title', 'Unknown'),
-                        'relevance': 1 - distance  # Convert distance to relevance score
+                        'relevance': 1 - distance
                     })
 
             return sources
@@ -224,23 +234,19 @@ class EnhancedRAGService:
     def reload_data(self):
         """Reload data from file"""
         try:
-            # Delete only file-based chunks
             file_chunks = self.collection.get(where={"type": "file"})
             if file_chunks['ids']:
                 self.collection.delete(ids=file_chunks['ids'])
-                print(f"Deleted {len(file_chunks['ids'])} old file chunks")
-
-            # Reload file content
+                print(f"Deleted {len(file_chunks['ids'])} old chunks")
             self.load_data()
         except Exception as e:
             print(f"Error reloading data: {e}")
 
     def refetch_and_reload_data(self,
                                 url: str = "https://en.wikipedia.org/wiki/Universities_in_the_United_Kingdom") -> bool:
-        """Refetch data from URL using Firecrawl"""
+        """Refetch data from URL"""
         firecrawl = self.get_firecrawl_service()
         if not firecrawl:
-            print("Firecrawl service not available")
             return False
 
         try:
@@ -248,34 +254,29 @@ class EnhancedRAGService:
             result = firecrawl.scrape_url(url)
 
             if not result or 'markdown' not in result:
-                print("Failed to fetch data from URL")
                 return False
 
             content = result['markdown']
             title = result.get('metadata', {}).get('title', 'Unknown')
 
-            # Clean the content
             cleaned_content = self._clean_text(content)
 
-            # Save to local file
-            print(f"Saving data to {self.data_file}...")
+            print(f"Saving to {self.data_file}...")
             with open(self.data_file, 'w', encoding='utf-8') as f:
                 f.write(f"# {title}\n\n")
                 f.write(f"Source: {url}\n\n")
                 f.write(cleaned_content)
 
-            # Reload into ChromaDB
             self.reload_data()
             print("✅ Data successfully refetched and reloaded")
-
             return True
 
         except Exception as e:
-            print(f"Error refetching data: {e}")
+            print(f"Error refetching: {e}")
             return False
 
     def get_stats(self) -> Dict:
-        """Get statistics about the knowledge base"""
+        """Get knowledge base statistics"""
         try:
             all_items = self.collection.get(include=['metadatas'])
             file_count = sum(1 for meta in all_items['metadatas'] if meta.get('type') == 'file')
@@ -291,18 +292,17 @@ class EnhancedRAGService:
             return {'total_chunks': 0, 'file_chunks': 0, 'web_chunks': 0}
 
     def clear_web_content(self):
-        """Clear all web-scraped content"""
+        """Clear web-scraped content"""
         try:
             web_chunks = self.collection.get(where={"type": "web_scrape"})
             if web_chunks['ids']:
                 self.collection.delete(ids=web_chunks['ids'])
-                print(f"Cleared {len(web_chunks['ids'])} web content chunks")
+                print(f"Cleared {len(web_chunks['ids'])} web chunks")
         except Exception as e:
-            print(f"Error clearing web content: {e}")
+            print(f"Error clearing: {e}")
 
-    # Keep other methods from original file for web scraping functionality
     def add_web_content(self, url: str, max_pages: int = 1) -> bool:
-        """Add web content to the knowledge base"""
+        """Add web content"""
         firecrawl = self.get_firecrawl_service()
         if not firecrawl:
             return False
@@ -318,7 +318,7 @@ class EnhancedRAGService:
             return False
 
     def _add_scraped_content(self, scraped_data: Dict, url: str, search_query: Optional[str] = None):
-        """Add scraped content to vector database"""
+        """Add scraped content to database"""
         if 'markdown' not in scraped_data:
             return
 
