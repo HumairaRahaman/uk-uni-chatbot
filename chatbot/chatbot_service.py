@@ -73,7 +73,7 @@ class ChatbotService:
             return text
 
     def _is_education_related(self, query: str) -> bool:
-        """Check if query is about UK universities/education"""
+        """Check if query is about UK universities/education - with fuzzy matching for spelling mistakes"""
         try:
             education_keywords = [
                 'university', 'universities', 'college', 'oxford', 'cambridge',
@@ -83,17 +83,85 @@ class ChatbotService:
                 'lecture', 'semester', 'academic', 'education', 'study',
                 'scholarship', 'student loan', 'uk education', 'british university',
                 'imperial', 'lse', 'ucl', 'edinburgh', 'manchester', 'warwick',
-                'course', 'program', 'faculty', 'department', 'school',
+                'course', 'program', 'programme', 'faculty', 'department', 'school',
                 'a-level', 'gcse', 'btec', 'foundation', 'clearing',
                 'student visa', 'international student', 'home student',
                 'halls', 'library', 'dissertation', 'thesis',
-                'exam', 'assessment', 'grade', 'gpa', 'transcript'
+                'exam', 'assessment', 'grade', 'gpa', 'transcript',
+                # More UK universities
+                'durham', 'bristol', 'nottingham', 'leeds', 'liverpool',
+                'birmingham', 'glasgow', 'exeter', 'york', 'bath',
+                'st andrews', 'kings college', 'queen mary', 'southampton',
+                'newcastle', 'cardiff', 'sheffield', 'leicester',
+                # University types
+                'ancient', 'plate glass', 'civic', 'new university',
+                'russell', 'group of universities'
             ]
+
             query_lower = query.lower()
-            return any(keyword in query_lower for keyword in education_keywords)
+
+            # First check exact matches
+            if any(keyword in query_lower for keyword in education_keywords):
+                return True
+
+            # If no exact match, try fuzzy matching for spelling mistakes
+            query_words = query_lower.split()
+            for word in query_words:
+                # Only check words longer than 3 characters
+                if len(word) <= 3:
+                    continue
+
+                for keyword in education_keywords:
+                    # Only fuzzy match single-word keywords
+                    if ' ' in keyword:
+                        continue
+
+                    # Calculate similarity
+                    if self._is_similar(word, keyword):
+                        print(f"🔍 Fuzzy match: '{word}' matched with '{keyword}'")
+                        return True
+
+            return False
+
         except Exception as e:
             print(f"Error checking if education related: {e}")
             return False
+
+    def _is_similar(self, word1: str, word2: str, threshold: int = 2) -> bool:
+        """Check if two words are similar using Levenshtein distance (allows typos)"""
+        # If lengths differ by more than threshold, not similar
+        if abs(len(word1) - len(word2)) > threshold:
+            return False
+
+        # Calculate Levenshtein distance (edit distance)
+        distance = self._levenshtein_distance(word1, word2)
+
+        # Allow up to 2 character differences for words 5+ chars
+        # Allow 1 character difference for words 4 chars
+        max_distance = 2 if len(word2) >= 5 else 1
+
+        return distance <= max_distance
+
+    def _levenshtein_distance(self, s1: str, s2: str) -> int:
+        """Calculate Levenshtein distance between two strings"""
+        if len(s1) < len(s2):
+            return self._levenshtein_distance(s2, s1)
+
+        if len(s2) == 0:
+            return len(s1)
+
+        previous_row = range(len(s2) + 1)
+        for i, c1 in enumerate(s1):
+            current_row = [i + 1]
+            for j, c2 in enumerate(s2):
+                # Cost of insertions, deletions, or substitutions
+                insertions = previous_row[j + 1] + 1
+                deletions = current_row[j] + 1
+                substitutions = previous_row[j] + (c1 != c2)
+                current_row.append(min(insertions, deletions, substitutions))
+            previous_row = current_row
+
+        return previous_row[-1]
 
     def get_response(self, user_query):
         """Get response - 100% FREE, no API needed"""
@@ -186,19 +254,17 @@ Please try rephrasing your question or ask about a specific UK university!"""
 If the problem persists, please contact support."""
 
     def _generate_response(self, user_query, cleaned_docs):
-        """Generate simple paragraph response - NO headers, NO formatting"""
+        """Generate conversational, ChatGPT-style response from knowledge base"""
 
         try:
-            print("📝 Building paragraph response...")
+            print("📝 Building conversational response...")
 
             # Extract sentences from documents
             all_sentences = []
-            for doc in cleaned_docs[:6]:  # Use top 6 documents
-                # Split by period
+            for doc in cleaned_docs[:8]:  # Use top 8 documents for more content
                 sentences = doc.split('.')
                 for sent in sentences:
                     sent = sent.strip()
-                    # Only keep substantial sentences
                     if len(sent) > 50:
                         all_sentences.append(sent)
 
@@ -209,37 +275,21 @@ If the problem persists, please contact support."""
             unique_sentences = []
             for sent in all_sentences:
                 sent_lower = sent.lower()
-                # Check if we've seen similar content
                 if sent_lower not in seen and len(sent) > 50:
                     seen.add(sent_lower)
                     unique_sentences.append(sent)
-                    # Limit to 10 unique sentences max
-                    if len(unique_sentences) >= 10:
+                    if len(unique_sentences) >= 12:  # Get more sentences for better answers
                         break
 
             print(f"✅ {len(unique_sentences)} unique sentences")
 
             if len(unique_sentences) == 0:
-                print("⚠️ No valid sentences extracted")
-                return f"I found information about {user_query}, but couldn't extract clear details. Please try rephrasing your question."
+                return "I don't have specific information about that in my knowledge base. Could you try rephrasing your question or ask about a specific UK university?"
 
-            # Build simple paragraph response (NO headers, NO bullet points, NO emojis)
-            # Just natural paragraphs like a person would write
-            response = ""
+            # Build natural, conversational response like ChatGPT/Gemini
+            response = self._create_conversational_response(user_query, unique_sentences)
 
-            # First paragraph (3-4 sentences)
-            if len(unique_sentences) >= 4:
-                response = ". ".join(unique_sentences[:4]) + "."
-            elif len(unique_sentences) >= 1:
-                response = ". ".join(unique_sentences) + "."
-
-            # Add second paragraph if we have more sentences (5-8)
-            if len(unique_sentences) >= 8:
-                response += "\n\n" + ". ".join(unique_sentences[4:8]) + "."
-            elif len(unique_sentences) >= 5:
-                response += "\n\n" + ". ".join(unique_sentences[4:]) + "."
-
-            print("✅ Response generated successfully")
+            print("✅ Conversational response generated")
             return response
 
         except Exception as e:
@@ -247,11 +297,63 @@ If the problem persists, please contact support."""
             print(f"❌ ERROR in _generate_response: {str(e)}")
             print(traceback.format_exc())
 
-            # Fallback to very simple response
+            # Fallback
             if cleaned_docs and len(cleaned_docs) > 0:
-                first_doc = cleaned_docs[0]
-                # Get first 400 characters
-                simple_text = first_doc[:400]
-                return f"{simple_text}..."
+                return cleaned_docs[0][:500] + "..."
             else:
                 return "I couldn't generate a proper response. Please try asking your question differently."
+
+    def _create_conversational_response(self, query, sentences):
+        """Create a natural, flowing response like ChatGPT/Gemini"""
+
+        # Determine query type and create appropriate intro
+        query_lower = query.lower()
+
+        # Opening based on question type
+        if any(word in query_lower for word in ['what is', 'what are', 'what\'s']):
+            # Definitional question
+            intro = sentences[0] if len(sentences) > 0 else ""
+            response = f"{intro}."
+        elif any(word in query_lower for word in ['tell me about', 'tell about', 'info about', 'information about']):
+            # General information request
+            response = f"{sentences[0]}." if len(sentences) > 0 else ""
+        elif any(word in query_lower for word in ['how', 'why', 'when', 'where', 'who']):
+            # Specific question
+            response = f"{sentences[0]}." if len(sentences) > 0 else ""
+        else:
+            # General query
+            response = f"{sentences[0]}." if len(sentences) > 0 else ""
+
+        # Add supporting details in natural paragraphs
+        if len(sentences) >= 4:
+            # Second paragraph - add 2-3 supporting sentences
+            response += f"\n\n{sentences[1]}. {sentences[2]}."
+            if len(sentences) > 3:
+                response += f" {sentences[3]}."
+
+        if len(sentences) >= 7:
+            # Third paragraph - add more context
+            response += f"\n\n{sentences[4]}. {sentences[5]}."
+            if len(sentences) > 6:
+                response += f" {sentences[6]}."
+
+        if len(sentences) >= 10:
+            # Fourth paragraph - additional details
+            response += f"\n\n{sentences[7]}. {sentences[8]}."
+            if len(sentences) > 9:
+                response += f" {sentences[9]}."
+
+        # Add a natural closing if we have enough content
+        if len(sentences) >= 6:
+            # Add a helpful closing
+            closing_phrases = [
+                "\n\nLet me know if you'd like to know more about any specific aspect.",
+                "\n\nFeel free to ask if you need more details about this topic.",
+                "\n\nI can provide more information if you have specific questions.",
+                "\n\nWould you like to know more about any particular area?"
+            ]
+            # Pick based on query length to add variety
+            closing_index = len(query) % len(closing_phrases)
+            response += closing_phrases[closing_index]
+
+        return response
